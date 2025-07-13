@@ -99,23 +99,23 @@ const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
                                 })
                             ) : null}
                         </div>
-                            <div className="add-field">
-                                <input 
-                                    type="text" 
-                                    placeholder="اسم الحقل الجديد"
-                                    value={newFieldKey}
-                                    onChange={(e) => setNewFieldKey(e.target.value)}
-                                />
-                                <input 
-                                    type="text" 
-                                    placeholder="قيمة الحقل"
-                                    value={newFieldValue}
-                                    onChange={(e) => setNewFieldValue(e.target.value)}
-                                />
-                                <button type="button" onClick={addNewField}>إضافة حقل</button>
-                            </div>
+                        <div className="add-field">
+                            <input 
+                                type="text" 
+                                placeholder="اسم الحقل الجديد"
+                                value={newFieldKey}
+                                onChange={(e) => setNewFieldKey(e.target.value)}
+                            />
+                            <input 
+                                type="text" 
+                                placeholder="قيمة الحقل"
+                                value={newFieldValue}
+                                onChange={(e) => setNewFieldValue(e.target.value)}
+                            />
+                            <button type="button" onClick={addNewField}>إضافة حقل</button>
                         </div>
                     </div>
+                </div>
                     <hr style={{ margin: '20px 0' }} />
                     <button type="submit" className="btn-save">حفظ التعديلات</button>
                 </form>
