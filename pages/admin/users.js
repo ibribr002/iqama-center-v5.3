@@ -96,10 +96,9 @@ const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
                                             />
                                         </div>
                                     );
-                                }
-                                ))
+                                })
                             ) : null}
-                            </div>
+                        </div>
                             <div className="add-field">
                                 <input 
                                     type="text" 
