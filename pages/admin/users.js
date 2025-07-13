@@ -1,9 +1,7 @@
-// /pages/admin/users.js
-
 import React, { useState, useEffect } from 'react';
-import Layout from '../../components/Layout'; // CORRECTED PATH
-import pool from '../../lib/db'; // CORRECTED PATH
-import { withAuth } from '../../lib/withAuth'; // CORRECTED PATH
+import Layout from '../../components/Layout';
+import pool from '../../lib/db';
+import { withAuth } from '../../lib/withAuth';
 import { useRouter } from 'next/router';
 
 const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
@@ -14,8 +12,7 @@ const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
     const [newFieldValue, setNewFieldValue] = useState('');
 
     useEffect(() => {
-        // Ensure details is an object, even if it's null/undefined initially
-        setFormData(u => u ? { ...u, details: u.details || {} } : {});
+        setFormData(user || {});
     }, [user]);
 
     if (!isOpen) return null;
@@ -23,6 +20,10 @@ const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleDetailsChange = (e) => {
+        setFormData(prev => ({ ...prev, details: e.target.value }));
     };
 
     const handleDetailFieldChange = (key, value) => {
@@ -36,26 +37,32 @@ const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
     };
 
     const addNewField = () => {
-        if (!newFieldKey.trim()) {
-            setMessage({ text: 'اسم الحقل الجديد لا يمكن أن يكون فارغًا.', type: 'error' });
-            return;
+        if (newFieldKey.trim() && newFieldValue.trim()) {
+            setFormData(prev => ({
+                ...prev,
+                details: {
+                    ...prev.details,
+                    [newFieldKey]: newFieldValue
+                }
+            }));
+            setNewFieldKey('');
+            setNewFieldValue('');
         }
-        if (formData.details && Object.keys(formData.details).includes(newFieldKey)) {
-            setMessage({ text: 'هذا الحقل موجود بالفعل.', type: 'error' });
-            return;
-        }
-        handleDetailFieldChange(newFieldKey, newFieldValue);
-        setNewFieldKey('');
-        setNewFieldValue('');
-        setMessage({ text: '', type: '' });
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const result = await onSave(formData);
+        let details;
+        try {
+            details = formData.details || {};
+        } catch (error) {
+            setMessage({ text: 'JSON في حقل التفاصيل غير صالح.', type: 'error' });
+            return;
+        }
+        const result = await onSave({ ...formData, details });
         setMessage(result);
     };
-
+    
     const handlePromote = async () => {
         if (!confirm(`هل أنت متأكد من ترقية هذا المستخدم إلى دور "${promoteRole}"؟`)) return;
         const result = await onPromote(user.id, promoteRole);
@@ -95,27 +102,42 @@ const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
                         </select>
                     </div>
                     <div className="form-group">
-                        <label>تفاصيل إضافية</label>
+                        <label>تفاصيل إضافية (JSON)</label>
                         <div className="details-editor">
                             {formData.details && typeof formData.details === 'object' ? (
                                 Object.entries(formData.details).map(([key, value]) => {
-                                    const displayValue = Array.isArray(value)
-                                        ? value.join(', ')
+                                    const displayValue = Array.isArray(value) 
+                                        ? value.join(', ') 
                                         : (typeof value === 'object' && value !== null)
                                             ? JSON.stringify(value)
                                             : String(value || '');
+                                    
                                     return (
                                         <div key={key} className="detail-field">
                                             <label>{key}:</label>
-                                            <input type="text" value={displayValue} onChange={(e) => handleDetailFieldChange(key, e.target.value)} />
+                                            <input 
+                                                type="text" 
+                                                value={displayValue} 
+                                                onChange={(e) => handleDetailFieldChange(key, e.target.value)}
+                                            />
                                         </div>
                                     );
                                 })
                             ) : null}
                         </div>
                         <div className="add-field">
-                            <input type="text" placeholder="اسم الحقل الجديد" value={newFieldKey} onChange={(e) => setNewFieldKey(e.target.value)} />
-                            <input type="text" placeholder="قيمة الحقل" value={newFieldValue} onChange={(e) => setNewFieldValue(e.target.value)} />
+                            <input 
+                                type="text" 
+                                placeholder="اسم الحقل الجديد"
+                                value={newFieldKey}
+                                onChange={(e) => setNewFieldKey(e.target.value)}
+                            />
+                            <input 
+                                type="text" 
+                                placeholder="قيمة الحقل"
+                                value={newFieldValue}
+                                onChange={(e) => setNewFieldValue(e.target.value)}
+                            />
                             <button type="button" onClick={addNewField}>إضافة حقل</button>
                         </div>
                     </div>
@@ -143,6 +165,7 @@ const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
     );
 };
 
+
 const AdminUsersPage = ({ user, users }) => {
     const [filteredUsers, setFilteredUsers] = useState(users);
     const [searchTerm, setSearchTerm] = useState('');
@@ -159,7 +182,7 @@ const AdminUsersPage = ({ user, users }) => {
     }, [searchTerm, users]);
 
     const openEditModal = (userToEdit) => {
-        setSelectedUser(JSON.parse(JSON.stringify(userToEdit)));
+        setSelectedUser(userToEdit);
         setIsModalOpen(true);
     };
 
@@ -177,17 +200,17 @@ const AdminUsersPage = ({ user, users }) => {
             });
             const result = await response.json();
             if (response.ok) {
-                router.replace(router.asPath);
+                router.replace(router.asPath); // Refresh data
                 setTimeout(closeEditModal, 1500);
                 return { text: result.message, type: 'success' };
             } else {
                 return { text: result.message, type: 'error' };
             }
         } catch (err) {
-            return { text: 'خطأ في الاتصال بالخادم.', type: 'error' };
+            return { text: 'خطأ في الاتصال أو صيغة JSON غير صحيحة.', type: 'error' };
         }
     };
-
+    
     const handlePromoteUser = async (userId, newRole) => {
         try {
             const response = await fetch(`/api/users/${userId}/promote`, {
@@ -197,7 +220,7 @@ const AdminUsersPage = ({ user, users }) => {
             });
             const result = await response.json();
             if (response.ok) {
-                router.replace(router.asPath);
+                router.replace(router.asPath); // Refresh data
                 return { text: result.message, type: 'success' };
             } else {
                 return { text: result.message, type: 'error' };
@@ -223,13 +246,30 @@ const AdminUsersPage = ({ user, users }) => {
                 .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
                 .message.success { color: #155724; background-color: #d4edda; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
                 .message.error { color: #721c24; background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
-                .detail-field { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+                .form-group { margin-bottom: 15px; }
+                .form-group label { display: block; margin-bottom: 5px; font-weight: 600; }
+                .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+                .details-editor { margin-bottom: 15px; }
+                .detail-field { display: flex; align-items: center; margin-bottom: 10px; }
+                .detail-field label { margin-right: 10px; min-width: 100px; }
+                .detail-field input { flex: 1; }
                 .add-field { display: flex; gap: 10px; margin-top: 10px; }
+                .add-field input { flex: 1; }
+                .btn-save { background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+                .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; }
+                .btn-warning { background-color: #ffc107; color: #212529; }
+                .form-control { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
             `}</style>
             <h1><i className="fas fa-users-cog fa-fw"></i> إدارة المستخدمين</h1>
             <div className="table-container">
                 <div className="table-controls">
-                    <input type="text" className="search-box" placeholder="🔍 ابحث بالاسم أو البريد الإلكتروني..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                    <input 
+                        type="text" 
+                        className="search-box" 
+                        placeholder="🔍 ابحث بالاسم أو البريد الإلكتروني..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                    />
                 </div>
                 <table className="users-table">
                     <thead>
@@ -260,26 +300,28 @@ const AdminUsersPage = ({ user, users }) => {
                     </tbody>
                 </table>
             </div>
-            {isModalOpen && <EditUserModal user={selectedUser} isOpen={isModalOpen} onClose={closeEditModal} onSave={handleSaveUser} onPromote={handlePromoteUser} />}
+            <EditUserModal 
+                user={selectedUser}
+                isOpen={isModalOpen}
+                onClose={closeEditModal}
+                onSave={handleSaveUser}
+                onPromote={handlePromoteUser}
+            />
         </Layout>
     );
 };
 
 export default AdminUsersPage;
 
+
 export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
     const usersResult = await pool.query('SELECT id, full_name, email, phone, role, details, created_at FROM users ORDER BY created_at DESC');
 
-    const users = usersResult.rows.map(u => {
-        const userWithDetailsObject = { ...u, details: u.details || {} };
-        return JSON.parse(JSON.stringify(userWithDetailsObject));
-    });
-
     return {
         props: {
             user: JSON.parse(JSON.stringify(user)),
-            users: users
+            users: usersResult.rows.map(u => JSON.parse(JSON.stringify({ ...u, details: u.details || {} })))
         }
     };
 }, { roles: ['admin'] });
