@@ -8,9 +8,12 @@ const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
     const [formData, setFormData] = useState(user);
     const [message, setMessage] = useState({ text: '', type: '' });
     const [promoteRole, setPromoteRole] = useState('student');
+    const [newFieldKey, setNewFieldKey] = useState('');
+    const [newFieldValue, setNewFieldValue] = useState('');
 
     useEffect(() => {
-        setFormData(user || {});
+        // Ensure details is an object, even if it's null/undefined initially
+        setFormData(u => u ? { ...u, details: u.details || {} } : {});
     }, [user]);
 
     if (!isOpen) return null;
@@ -20,23 +23,38 @@ const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleDetailsChange = (e) => {
-        setFormData(prev => ({ ...prev, details: e.target.value }));
+    const handleDetailFieldChange = (key, value) => {
+        setFormData(prev => ({
+            ...prev,
+            details: {
+                ...prev.details,
+                [key]: value
+            }
+        }));
+    };
+
+    const addNewField = () => {
+        if (!newFieldKey.trim()) {
+            setMessage({ text: 'اسم الحقل الجديد لا يمكن أن يكون فارغًا.', type: 'error' });
+            return;
+        }
+        if (formData.details && Object.keys(formData.details).includes(newFieldKey)) {
+            setMessage({ text: 'هذا الحقل موجود بالفعل.', type: 'error' });
+            return;
+        }
+        handleDetailFieldChange(newFieldKey, newFieldValue);
+        setNewFieldKey('');
+        setNewFieldValue('');
+        setMessage({ text: '', type: '' }); // Clear any previous message
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        let details;
-        try {
-            details = JSON.parse(formData.details || '{}');
-        } catch (error) {
-            setMessage({ text: 'JSON في حقل التفاصيل غير صالح.', type: 'error' });
-            return;
-        }
-        const result = await onSave({ ...formData, details });
+        // The `details` field is already managed as an object, no parsing is needed.
+        const result = await onSave(formData);
         setMessage(result);
     };
-    
+
     const handlePromote = async () => {
         if (!confirm(`هل أنت متأكد من ترقية هذا المستخدم إلى دور "${promoteRole}"؟`)) return;
         const result = await onPromote(user.id, promoteRole);
@@ -80,18 +98,18 @@ const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
                         <div className="details-editor">
                             {formData.details && typeof formData.details === 'object' ? (
                                 Object.entries(formData.details).map(([key, value]) => {
-                                    const displayValue = Array.isArray(value) 
-                                        ? value.join(', ') 
+                                    const displayValue = Array.isArray(value)
+                                        ? value.join(', ')
                                         : (typeof value === 'object' && value !== null)
                                             ? JSON.stringify(value)
                                             : String(value || '');
-                                    
+
                                     return (
                                         <div key={key} className="detail-field">
                                             <label>{key}:</label>
-                                            <input 
-                                                type="text" 
-                                                value={displayValue} 
+                                            <input
+                                                type="text"
+                                                value={displayValue}
                                                 onChange={(e) => handleDetailFieldChange(key, e.target.value)}
                                             />
                                         </div>
@@ -100,14 +118,14 @@ const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
                             ) : null}
                         </div>
                         <div className="add-field">
-                            <input 
-                                type="text" 
+                            <input
+                                type="text"
                                 placeholder="اسم الحقل الجديد"
                                 value={newFieldKey}
                                 onChange={(e) => setNewFieldKey(e.target.value)}
                             />
-                            <input 
-                                type="text" 
+                            <input
+                                type="text"
                                 placeholder="قيمة الحقل"
                                 value={newFieldValue}
                                 onChange={(e) => setNewFieldValue(e.target.value)}
@@ -115,7 +133,7 @@ const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
                             <button type="button" onClick={addNewField}>إضافة حقل</button>
                         </div>
                     </div>
-                </div>
+                    {/* The extra </div> that caused the build error was here and has been removed. */}
                     <hr style={{ margin: '20px 0' }} />
                     <button type="submit" className="btn-save">حفظ التعديلات</button>
                 </form>
@@ -157,7 +175,8 @@ const AdminUsersPage = ({ user, users }) => {
     }, [searchTerm, users]);
 
     const openEditModal = (userToEdit) => {
-        setSelectedUser(userToEdit);
+        // Pass a deep copy to prevent direct mutation of the state
+        setSelectedUser(JSON.parse(JSON.stringify(userToEdit)));
         setIsModalOpen(true);
     };
 
@@ -182,10 +201,10 @@ const AdminUsersPage = ({ user, users }) => {
                 return { text: result.message, type: 'error' };
             }
         } catch (err) {
-            return { text: 'خطأ في الاتصال أو صيغة JSON غير صحيحة.', type: 'error' };
+            return { text: 'خطأ في الاتصال بالخادم.', type: 'error' };
         }
     };
-    
+
     const handlePromoteUser = async (userId, newRole) => {
         try {
             const response = await fetch(`/api/users/${userId}/promote`, {
@@ -221,13 +240,17 @@ const AdminUsersPage = ({ user, users }) => {
                 .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
                 .message.success { color: #155724; background-color: #d4edda; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
                 .message.error { color: #721c24; background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+                .detail-field { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+                .detail-field label { flex-basis: 120px; text-align: left; }
+                .detail-field input { flex-grow: 1; }
+                .add-field { display: flex; gap: 10px; margin-top: 10px; }
             `}</style>
             <h1><i className="fas fa-users-cog fa-fw"></i> إدارة المستخدمين</h1>
             <div className="table-container">
                 <div className="table-controls">
-                    <input 
-                        type="text" 
-                        className="search-box" 
+                    <input
+                        type="text"
+                        className="search-box"
                         placeholder="🔍 ابحث بالاسم أو البريد الإلكتروني..."
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
@@ -262,13 +285,13 @@ const AdminUsersPage = ({ user, users }) => {
                     </tbody>
                 </table>
             </div>
-            <EditUserModal 
+            {isModalOpen && <EditUserModal
                 user={selectedUser}
                 isOpen={isModalOpen}
                 onClose={closeEditModal}
                 onSave={handleSaveUser}
                 onPromote={handlePromoteUser}
-            />
+            />}
         </Layout>
     );
 };
@@ -280,10 +303,18 @@ export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
     const usersResult = await pool.query('SELECT id, full_name, email, phone, role, details, created_at FROM users ORDER BY created_at DESC');
 
+    const users = usersResult.rows.map(u => {
+        // Ensure that details is always an object, even if it's null in the database.
+        const userWithDetailsObject = { ...u, details: u.details || {} };
+        // The data from the database might contain Date objects, which are not serializable.
+        // Stringify and parse to ensure all data is serializable JSON.
+        return JSON.parse(JSON.stringify(userWithDetailsObject));
+    });
+
     return {
         props: {
             user: JSON.parse(JSON.stringify(user)),
-            users: usersResult.rows.map(u => JSON.parse(JSON.stringify({ ...u, details: u.details || {} })))
+            users: users
         }
     };
 }, { roles: ['admin'] });
