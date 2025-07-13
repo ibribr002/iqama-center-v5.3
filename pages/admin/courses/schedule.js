@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import CourseScheduling from '../../../components/CourseScheduling';
+import { withAuth } from '../../../lib/withAuth';
 
-const CourseSchedulePage = () => {
+const CourseSchedulePage = ({ user }) => {
     const router = useRouter();
     const { id } = router.query;
     const [course, setCourse] = useState(null);
@@ -40,7 +41,7 @@ const CourseSchedulePage = () => {
 
     if (loading) {
         return (
-            <Layout>
+            <Layout user={user}>
                 <div style={{ textAlign: 'center', padding: '50px' }}>
                     <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem' }}></i>
                     <p>جاري تحميل بيانات الدورة...</p>
@@ -51,7 +52,7 @@ const CourseSchedulePage = () => {
 
     if (!course) {
         return (
-            <Layout>
+            <Layout user={user}>
                 <div style={{ textAlign: 'center', padding: '50px' }}>
                     <h2>الدورة غير موجودة</h2>
                     <button onClick={() => router.push('/admin/courses/manage')}>
@@ -63,7 +64,7 @@ const CourseSchedulePage = () => {
     }
 
     return (
-        <Layout>
+        <Layout user={user}>
             <div className="course-schedule-page">
                 <style jsx>{`
                     .course-schedule-page {
@@ -130,3 +131,13 @@ const CourseSchedulePage = () => {
 };
 
 export default CourseSchedulePage;
+
+export const getServerSideProps = withAuth(async (context) => {
+    const { user } = context;
+    
+    return {
+        props: {
+            user: JSON.parse(JSON.stringify(user))
+        }
+    };
+}, { roles: ['admin', 'head', 'teacher'] }); // Adjust roles as needed
